@@ -1,0 +1,25 @@
+{
+  "name": "ras-site-safety",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Site Safety Forms app: React + Node/Express (Netlify Functions) + PostgreSQL",
+  "scripts": {
+    "dev:api": "node --env-file=.env backend/server.js",
+    "dev:web": "npm --prefix frontend run dev",
+    "seed": "node --env-file=.env backend/seed.js",
+    "build": "npm --prefix frontend install && npm --prefix frontend run build",
+    "test": "node --env-file=.env --test backend/tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=20.6"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "express": "^4.22.3",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.4.0",
+    "pg": "^8.23.1",
+    "serverless-http": "^4.0.0"
+  }
+}
