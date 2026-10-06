@@ -18,7 +18,7 @@ router.post(
         const hash = await bcrypt.hash(password, 10);
         try {
             const [user] = await query(
-                `INSER INTO users (username, full_name, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, full_name, role`,
+                `INSERT INTO users (username, full_name, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, full_name, role`,
                 [username, fullName, hash, role],
             );
             res.status(201).json({user: user.id, username: user.username, fullName: user.fullName, role: user.role});

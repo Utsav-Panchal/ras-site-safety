@@ -2,7 +2,7 @@ import {HttpError} from "./errors.js";
 
 export function validateNewUSer(body) {
     const username = String(body?.username ?? '').trim().toLowerCase();
-    const fullName = String(body?.fullname ?? '').trim().replace(/\s+/g, ' ');
+    const fullName = String(body?.fullName ?? '').trim().replace(/\s+/g, ' ');
     const password = String(body?.password ?? '');
 
     const errors= {};
