@@ -6,11 +6,20 @@ import Signup from './pages/Signup.jsx';
 import SafetyForm from './pages/SafetyForm.jsx';
 import Submitted from './pages/Submitted.jsx';
 import MyForms from './pages/MyForms.jsx';
-
-// Temporary page. Replaced by the real pages in the next slices.
-const Soon = ({ title }) => <p className="page-loading">{title} (coming in the next slice)</p>;
+import SubmissionDetail from './pages/SubmissionDetail.jsx';
+import Submissions from './pages/Submissions.jsx';
 
 const homeFor = (user) => (user.role === 'ADMIN' ? '/admin' : '/form');
+
+// Temporary page, replaced in a later slice
+function Soon({ title }) {
+    return (
+        <div className="stack">
+            <h1 className="h page-title">{title}</h1>
+            <p className="muted">Coming in the next slice.</p>
+        </div>
+    );
+}
 
 /** Lets only one role through. Not signed in -> login. Wrong role -> that role's own home page. */
 function RequireRole({ role }) {
@@ -38,14 +47,15 @@ export default function App() {
                     <Route path="/form" element={<SafetyForm />} />
                     <Route path="/submitted" element={<Submitted />} />
                     <Route path="/my-forms" element={<MyForms />} />
-                    <Route path="/my-forms/:id" element={<Soon title="Form details" />} />
+                    <Route path="/my-forms/:id" element={<SubmissionDetail backTo="/my-forms" />} />
                 </Route>
             </Route>
 
             <Route element={<RequireRole role="ADMIN" />}>
                 <Route element={<AdminShell />}>
                     <Route path="/admin" element={<Soon title="Dashboard" />} />
-                    <Route path="/admin/submissions" element={<Soon title="Submissions" />} />
+                    <Route path="/admin/submissions" element={<Submissions />} />
+                    <Route path="/admin/submissions/:id" element={<SubmissionDetail backTo="/admin/submissions" />} />
                 </Route>
             </Route>
 

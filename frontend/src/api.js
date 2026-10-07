@@ -44,7 +44,7 @@ async function request(path, {method ="GET", json, form, as='json'}={}) {
 
     let res;
     try{
-        res = await fetch(`api/${path}`, {method, headers, body});
+        res = await fetch(`/api${path}`, {method, headers, body});
     }catch{
         throw new ApiError(0, "Cannot reach the server. Please check your connection.");
     }
@@ -81,4 +81,8 @@ export const api = {
 
     createSubmission: (formData) => request('/submissions', { method: 'POST', form: formData }),
     mySubmissions: () => request('/submissions/mine'),
+    workers: () => request('/workers'),
+    listSubmissions: (params) => request(`/submissions${toQuery(params)}`),
+    getSubmission: (id) => request(`/submissions/${id}`),
+    photoBlob: (id) => request(`/photos/${id}`, { as: 'blob' }),
 };

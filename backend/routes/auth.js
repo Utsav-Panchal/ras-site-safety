@@ -47,6 +47,16 @@ router.post(
     }),
 );
 
+router.get(
+    '/me',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+        const [user] = await query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+        if (!user) throw new HttpError(401, 'Your session has expired. Please sign in again.');
+        res.json({ user: publicUser(user) });
+    }),
+);
+
 export default router;
 
 
