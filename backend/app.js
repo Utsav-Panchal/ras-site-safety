@@ -6,6 +6,7 @@ import submissionRoutes from './routes/submissions.js';
 import adminRoutes from './routes/admin.js';
 import { HttpError } from './errors.js';
 import { MAX_PHOTOS, MAX_PHOTO_BYTES } from './config.js';
+import photoRoutes from './routes/photos.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -17,6 +18,7 @@ const api = express.Router();
 api.get('/health', (_req, res) => res.json({ ok: true }));
 api.use('/auth', authRoutes);
 api.use('/submissions', submissionRoutes);
+api.use('/photos', photoRoutes);
 api.use('/admin', adminRoutes);
 api.use('/', metaRoutes);
 app.use('/api', api);

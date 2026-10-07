@@ -4,9 +4,9 @@ import { query, withTransaction } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { asyncHandler, HttpError } from '../errors.js';
 import { CHECKLIST, MAX_PHOTOS, MAX_PHOTO_BYTES, todayInTz } from '../config.js';
-import { isValidIsoDate, shortDate } from '../format.js';
+import { addDays, isValidIsoDate, shortDate } from '../format.js';
 import { logActivity } from '../activity.js';
-import { LIST_SELECT, mapListRow } from '../submissionQueries.js';
+import { LIST_SELECT, buildWhere, mapListRow, reviewStatus } from '../submissionQueries.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -132,6 +132,126 @@ router.get(
             [req.user.id],
         );
         res.json({ items: rows.map(mapListRow) });
+    }),
+);
+
+
+// ---------- Admin: list with filters ----------
+router.get(
+    '/',
+    requireRole('ADMIN'),
+    asyncHandler(async (req, res) => {
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const pageSize = Math.min(50, Math.max(1, parseInt(req.query.pageSize, 10) || 10));
+
+        const { where, params } = buildWhere(req.query);
+        const rows = await query(
+            `${LIST_SELECT} ${where}
+       ORDER BY s.form_date DESC, s.created_at DESC
+       LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`,
+            params,
+        );
+        const [{ total }] = await query(
+            `SELECT COUNT(*) AS total FROM submissions s
+                                               JOIN users u ON u.id = s.user_id JOIN sites st ON st.id = s.site_id ${where}`,
+            params,
+        );
+
+        // numbers on the status chips: same filters, but ignoring the status filter itself
+        const chip = buildWhere(req.query, { ignoreStatus: true });
+        const [counts] = await query(
+            `SELECT COUNT(*) AS "all",
+                    COUNT(*) FILTER (WHERE s.status = 'COMPLIANT') AS compliant,
+                 COUNT(*) FILTER (WHERE s.status = 'FLAGGED') AS flagged,
+                 COUNT(*) FILTER (WHERE s.status = 'FLAGGED' AND s.resolved_at IS NULL) AS "needsReview"
+             FROM submissions s
+                      JOIN users u ON u.id = s.user_id JOIN sites st ON st.id = s.site_id ${chip.where}`,
+            chip.params,
+        );
+
+        res.json({ items: rows.map(mapListRow), total, page, pageSize, counts });
+    }),
+);
+
+
+// ---------- One submission (owner or admin) ----------
+
+async function loadOwnedOrAdmin(req) {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) throw new HttpError(404, 'Form not found.');
+    const [row] = await query(
+        `SELECT s.*, u.full_name AS worker_name, st.name AS site_name, rb.full_name AS resolved_by_name
+     FROM submissions s
+     JOIN users u ON u.id = s.user_id
+     JOIN sites st ON st.id = s.site_id
+     LEFT JOIN users rb ON rb.id = s.resolved_by
+     WHERE s.id = $1`,
+        [id],
+    );
+    // Someone else's form looks exactly like a missing one (404), so ids cannot be probed.
+    if (!row || (req.user.role !== 'ADMIN' && row.user_id !== req.user.id)) {
+        throw new HttpError(404, 'Form not found.');
+    }
+    return row;
+}
+
+router.get(
+    '/:id',
+    asyncHandler(async (req, res) => {
+        const row = await loadOwnedOrAdmin(req);
+        const checklist = CHECKLIST.map(({ key, column, label, group }) => ({
+            key, label, group, checked: row[column],
+        }));
+        const photos = await query(
+            `SELECT id, filename, size_bytes AS "sizeBytes" FROM photos WHERE submission_id = $1 ORDER BY id`,
+            [row.id],
+        );
+
+        const result = {
+            id: row.id,
+            workerId: row.user_id,
+            workerName: row.worker_name,
+            siteId: row.site_id,
+            siteName: row.site_name,
+            formDate: row.form_date,
+            status: row.status,
+            reviewStatus: reviewStatus(row),
+            notes: row.notes,
+            createdAt: row.created_at,
+            resolvedAt: row.resolved_at,
+            resolvedByName: row.resolved_by_name,
+            checklist,
+            checksDone: checklist.filter((c) => c.checked).length,
+            checksTotal: checklist.length,
+            photos,
+        };
+
+        if (req.user.role === 'ADMIN') {
+            result.adminNotes = await query(
+                `SELECT n.id, n.body, n.created_at AS "createdAt", u.full_name AS "authorName"
+         FROM admin_notes n JOIN users u ON u.id = n.author_id
+         WHERE n.submission_id = $1 ORDER BY n.created_at`,
+                [row.id],
+            );
+            result.history = await query(
+                `SELECT message, created_at AS "createdAt" FROM activity_log
+         WHERE submission_id = $1 ORDER BY created_at`,
+                [row.id],
+            );
+            // the worker's last 7 days at this site, for the little strip on the detail page
+            const first = addDays(row.form_date, -6);
+            const recent = await query(
+                `SELECT form_date, status FROM submissions
+         WHERE user_id = $1 AND site_id = $2 AND form_date BETWEEN $3 AND $4`,
+                [row.user_id, row.site_id, first, row.form_date],
+            );
+            const byDate = new Map(recent.map((r) => [r.form_date, r.status]));
+            result.recent = Array.from({ length: 7 }, (_, i) => {
+                const date = addDays(first, i);
+                return { date, status: byDate.get(date) ?? null };
+            });
+        }
+        res.json(result);
     }),
 );
 
