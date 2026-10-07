@@ -77,4 +77,8 @@ export const api = {
     register: (fullName, username, password) =>
         request('/auth/register', { method: 'POST', json: { fullName, username, password } }),
     me: () => request('/auth/me'),
+    meta: () => request('/meta'),
+
+    createSubmission: (formData) => request('/submissions', { method: 'POST', form: formData }),
+    mySubmissions: () => request('/submissions/mine'),
 };

@@ -22,7 +22,7 @@ export function FramerShell(){
                 </button>
                 {open && (
                     <nav className="m-menu" onClick={() => setOpen(false)}>
-                        <span className="m-menu-user">{user.fullName}</span>
+                        <span className="m-menu-user">{user.full_name}</span>
                         <NavLink to="/form">New form</NavLink>
                         <NavLink to="/my-forms">My forms</NavLink>
                         <button type="button" onClick={signOut}>Sign out</button>
@@ -58,7 +58,7 @@ export function AdminShell(){
                     <NavLink to="/admin/submissions">Submissions</NavLink>
                 </nav>
                 <div className="a-user">
-                    <div><b>{user.fullName}</b><br /><span>Supervisor</span></div>
+                    <div><b>{user.full_name}</b><br /><span>Supervisor</span></div>
                     <button type="button" className="btn ghost-dark" onClick={signOut}>Sign out</button>
                 </div>
             </aside>

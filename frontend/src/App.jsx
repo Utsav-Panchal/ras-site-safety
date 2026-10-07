@@ -3,7 +3,9 @@ import { useAuth } from './AuthContext.jsx';
 import { AdminShell, FramerShell } from './components/Shells.jsx';
 import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
-
+import SafetyForm from './pages/SafetyForm.jsx';
+import Submitted from './pages/Submitted.jsx';
+import MyForms from './pages/MyForms.jsx';
 
 // Temporary page. Replaced by the real pages in the next slices.
 const Soon = ({ title }) => <p className="page-loading">{title} (coming in the next slice)</p>;
@@ -33,8 +35,10 @@ export default function App() {
 
             <Route element={<RequireRole role="FRAMER" />}>
                 <Route element={<FramerShell />}>
-                    <Route path="/form" element={<Soon title="Safety form" />} />
-                    <Route path="/my-forms" element={<Soon title="My forms" />} />
+                    <Route path="/form" element={<SafetyForm />} />
+                    <Route path="/submitted" element={<Submitted />} />
+                    <Route path="/my-forms" element={<MyForms />} />
+                    <Route path="/my-forms/:id" element={<Soon title="Form details" />} />
                 </Route>
             </Route>
 
