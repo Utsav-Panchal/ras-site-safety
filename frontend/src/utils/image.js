@@ -5,7 +5,7 @@ export const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
  * (max 1600 px on the long side, JPEG), which keeps uploads fast on site
  * and under the 6 MB request limit of Netlify Functions.
  */
-export async function compressImage(file, { maxSide = 1600, maxBytes = 1.5 * 1024 * 1024 } = {}) {
+export async function compressImage(file, { maxSide = 2400, maxBytes = 1.5 * 1024 * 1024 } = {}) {
     if (!ALLOWED_TYPES.includes(file.type)) {
         throw new Error(`"${file.name}" is not a JPG, PNG or WebP image.`);
     }

@@ -1,6 +1,6 @@
 // Creates the tables and fills them with demo data:  npm run seed
-// WARNING: this DROPS and recreates every table. Use it on a demo database only.
-import { readFileSync } from 'node:fs';
+
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import bcrypt from 'bcryptjs';
 import { pool } from './db.js';
@@ -25,6 +25,21 @@ const FRAMERS = [
     { username: 'sofia', fullName: 'Sofia Alvarez', homeSite: 1 },
     { username: 'liam', fullName: 'Liam Chen', homeSite: 0 },
 ];
+
+
+// Real demo photos: put .jpg / .jpeg / .png files in backend/seed-photos/.
+// If the folder is empty or missing, the generated placeholder pictures are used instead.
+function loadRealPhotos() {
+    const dir = new URL('./seed-photos/', import.meta.url);
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir)
+        .filter((name) => /\.(jpe?g|png)$/i.test(name))
+        .sort()
+        .map((name) => {
+            const isPng = /\.png$/i.test(name);
+            return { data: readFileSync(new URL(name, dir)), mime: isPng ? 'image/png' : 'image/jpeg', ext: isPng ? 'png' : 'jpg' };
+        });
+}
 
 // ---------- tiny PNG maker, so the demo photos need no image files ----------
 
@@ -140,7 +155,12 @@ async function main() {
         sites.push(rows[0]);
     }
 
-    const photoPool = Array.from({ length: 8 }, (_, i) => makePhoto(i));
+    const real = loadRealPhotos();
+    const photoPool = real.length
+        ? real
+        : Array.from({ length: 8 }, (_, i) => ({ data: makePhoto(i), mime: 'image/png', ext: 'png' }));
+    console.log(real.length ? `Using ${real.length} real photos from backend/seed-photos` : 'Using generated placeholder photos');
+
     const today = todayInTz();
     const columns = CHECKLIST.map((c) => c.column);
     let formCount = 0;
@@ -188,10 +208,10 @@ async function main() {
 
             const photoCount = 1 + Math.floor(random() * 3);
             for (let p = 0; p < photoCount; p++) {
-                const data = pick(photoPool);
+                const photo = pick(photoPool);
                 await pool.query(
-                    `INSERT INTO photos (submission_id, filename, mime_type, size_bytes, data) VALUES ($1, $2, 'image/png', $3, $4)`,
-                    [submissionId, `site-photo-${p + 1}.png`, data.length, data],
+                    `INSERT INTO photos (submission_id, filename, mime_type, size_bytes, data) VALUES ($1, $2, $3, $4, $5)`,
+                    [submissionId, `site-photo-${p + 1}.${photo.ext}`, photo.mime, photo.data.length, photo.data],
                 );
             }
 

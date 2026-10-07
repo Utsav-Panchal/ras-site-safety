@@ -52,15 +52,15 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .page-title { font-size: 40px; line-height: 1.05; }
 
 /* ---------- logo ---------- */
-.logo { display: inline-flex; flex-direction: column; gap: 2px; line-height: 1; }
+.logo { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; line-height: 1; }
 .logo img { height: 34px; width: auto; display: block; }
 .logo-mark { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 34px; letter-spacing: .04em; }
 .logo-sub { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: .22em; text-transform: uppercase; color: #b7dcc9; }
-.logo-lg .logo-mark { font-size: 46px; }
-.logo-lg img { height: 46px; }
-.logo-xl .logo-mark { font-size: 96px; line-height: .85; }
-.logo-xl img { height: 90px; }
-.logo-xl .logo-sub { font-size: 20px; color: #9fd1b7; }
+.logo-lg .logo-mark { font-size: 30px; }
+.logo-lg img { height: 32px; }
+.logo-xl .logo-mark { font-size: 56px; line-height: .85; }
+.logo-xl img { height: 56px; }
+.logo-xl .logo-sub { font-size: 14px; color: #9fd1b7; }
 
 /* ---------- buttons, fields, messages ---------- */
 .btn {
