@@ -85,4 +85,5 @@ export const api = {
     listSubmissions: (params) => request(`/submissions${toQuery(params)}`),
     getSubmission: (id) => request(`/submissions/${id}`),
     photoBlob: (id) => request(`/photos/${id}`, { as: 'blob' }),
+    summary: (days) => request(`/admin/summary${toQuery({ days })}`),
 };

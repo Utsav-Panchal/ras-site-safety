@@ -8,18 +8,10 @@ import Submitted from './pages/Submitted.jsx';
 import MyForms from './pages/MyForms.jsx';
 import SubmissionDetail from './pages/SubmissionDetail.jsx';
 import Submissions from './pages/Submissions.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+
 
 const homeFor = (user) => (user.role === 'ADMIN' ? '/admin' : '/form');
-
-// Temporary page, replaced in a later slice
-function Soon({ title }) {
-    return (
-        <div className="stack">
-            <h1 className="h page-title">{title}</h1>
-            <p className="muted">Coming in the next slice.</p>
-        </div>
-    );
-}
 
 /** Lets only one role through. Not signed in -> login. Wrong role -> that role's own home page. */
 function RequireRole({ role }) {
@@ -53,7 +45,7 @@ export default function App() {
 
             <Route element={<RequireRole role="ADMIN" />}>
                 <Route element={<AdminShell />}>
-                    <Route path="/admin" element={<Soon title="Dashboard" />} />
+                    <Route path="/admin" element={<Dashboard />} />
                     <Route path="/admin/submissions" element={<Submissions />} />
                     <Route path="/admin/submissions/:id" element={<SubmissionDetail backTo="/admin/submissions" />} />
                 </Route>
