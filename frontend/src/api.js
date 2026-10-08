@@ -57,7 +57,7 @@ async function request(path, {method ="GET", json, form, as='json'}={}) {
         const message = res.status === 413
             ? 'The upload is too large. Remove a photo or use smaller photos.'
             : data.error || 'Something went wrong. Please try again.';
-        throw new ApiError(res.status, data.error || res.statusText, data.details);
+        throw new ApiError(res.status, message, data.details);
     }
     if (res.status === 204) return null;
     return as === 'blob' ? res.blob() : res.json();

@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import {query} from "../db.js";
 import { signToken, requireAuth } from "../auth.js";
 import { asyncHandler, HttpError} from "../errors.js";
-import { validateNewUSer } from "../userValidation.js";
+import { validateNewUser } from "../userValidation.js";
 
 const router = Router();
 
@@ -14,7 +14,7 @@ const publicUser = (u) => ({ id: u.id, username: u.username, full_name: u.full_n
 router.post(
     '/register',
     asyncHandler(async (req, res) => {
-        const {username, fullName, password} = validateNewUSer(req.body);
+        const {username, fullName, password} = validateNewUser(req.body);
         const hash = await bcrypt.hash(password, 10);
         try {
             const [user] = await query(
