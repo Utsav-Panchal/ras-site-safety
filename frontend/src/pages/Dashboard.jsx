@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { StatusBadge } from '../components/StatusBadge.jsx';
 import { formatDate, formatDateLong, formatWhen, initials } from '../utils/format.js';
+import { downloadBlob } from '../utils/download.js';
 
 const delta = (now, before, suffix = '') => {
     if (before === null || before === undefined || now === null) return null;
@@ -14,6 +15,7 @@ export default function Dashboard() {
     const [days, setDays] = useState(7);
     const [data, setData] = useState(null);
     const [error, setError] = useState('');
+    const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -22,6 +24,17 @@ export default function Dashboard() {
             .catch((err) => !cancelled && setError(err.message));
         return () => { cancelled = true; };
     }, [days]);
+
+    async function exportCsv() {
+        setExporting(true);
+        try {
+            downloadBlob(await api.exportCsv({}), 'safety-forms.csv');
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setExporting(false);
+        }
+    }
 
     if (error && !data) return <p className="alert alert-error">{error}</p>;
     if (!data) return <p className="page-loading">Loading...</p>;
@@ -55,6 +68,7 @@ export default function Dashboard() {
                         ))}
                     </div>
                     <Link to="/admin/submissions" className="btn primary">View all submissions</Link>
+                    <button type="button" className="btn" onClick={exportCsv} disabled={exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</button>
                 </div>
             </div>
             {error && <p className="alert alert-error">{error}</p>}

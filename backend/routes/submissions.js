@@ -173,6 +173,30 @@ router.get(
     }),
 );
 
+// ---------- Admin: delete several at once ----------
+
+router.post(
+    '/bulk-delete',
+    requireRole('ADMIN'),
+    asyncHandler(async (req, res) => {
+        const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number) : [];
+        if (ids.length === 0 || ids.length > 100 || !ids.every((n) => Number.isInteger(n) && n > 0)) {
+            throw new HttpError(400, 'Choose between 1 and 100 forms to delete.');
+        }
+        const deleted = await withTransaction(async (run) => {
+            const rows = await run('DELETE FROM submissions WHERE id = ANY($1::int[]) RETURNING id', [ids]);
+            if (rows.length) {
+                await logActivity(run, {
+                    actorId: req.user.id,
+                    action: 'DELETED',
+                    message: `${req.user.name} deleted ${rows.length} form${rows.length === 1 ? '' : 's'}`,
+                });
+            }
+            return rows.length;
+        });
+        res.json({ deleted });
+    }),
+);
 
 // ---------- One submission (owner or admin) ----------
 
@@ -252,6 +276,69 @@ router.get(
             });
         }
         res.json(result);
+    }),
+);
+
+
+// ---------- Admin: resolve / note / delete ----------
+
+router.post(
+    '/:id/resolve',
+    requireRole('ADMIN'),
+    asyncHandler(async (req, res) => {
+        const row = await loadOwnedOrAdmin(req);
+        if (row.status !== 'FLAGGED') throw new HttpError(409, 'Only flagged forms need to be resolved.');
+        if (row.resolved_at) throw new HttpError(409, 'This form is already resolved.');
+        await withTransaction(async (run) => {
+            await run('UPDATE submissions SET resolved_at = now(), resolved_by = $2 WHERE id = $1', [row.id, req.user.id]);
+            await logActivity(run, {
+                actorId: req.user.id,
+                action: 'RESOLVED',
+                submissionId: row.id,
+                message: `${req.user.name} resolved the flag on ${row.worker_name}, ${shortDate(row.form_date)}`,
+            });
+        });
+        res.json({ ok: true });
+    }),
+);
+
+router.post(
+    '/:id/notes',
+    requireRole('ADMIN'),
+    asyncHandler(async (req, res) => {
+        const row = await loadOwnedOrAdmin(req);
+        const body = String(req.body?.body ?? '').trim();
+        if (!body) throw new HttpError(400, 'Write a note first.');
+        if (body.length > 1000) throw new HttpError(400, 'Notes can be up to 1000 characters.');
+        await withTransaction(async (run) => {
+            await run('INSERT INTO admin_notes (submission_id, author_id, body) VALUES ($1, $2, $3)', [row.id, req.user.id, body]);
+            await logActivity(run, {
+                actorId: req.user.id,
+                action: 'NOTE',
+                submissionId: row.id,
+                message: `${req.user.name} added a follow-up note`,
+            });
+        });
+        res.status(201).json({ ok: true });
+    }),
+);
+
+router.delete(
+    '/:id',
+    requireRole('ADMIN'),
+    asyncHandler(async (req, res) => {
+        const row = await loadOwnedOrAdmin(req);
+        await withTransaction(async (run) => {
+            // photos and admin notes are removed too (ON DELETE CASCADE in the schema)
+            await run('DELETE FROM submissions WHERE id = $1', [row.id]);
+            await logActivity(run, {
+                actorId: req.user.id,
+                action: 'DELETED',
+                submissionId: row.id,
+                message: `${req.user.name} deleted a form (${row.worker_name}, ${shortDate(row.form_date)})`,
+            });
+        });
+        res.status(204).end();
     }),
 );
 

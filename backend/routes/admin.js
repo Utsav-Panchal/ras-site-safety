@@ -7,6 +7,7 @@ import { validateNewUser } from '../userValidation.js';
 import { CHECKLIST, todayInTz } from '../config.js';
 import { addDays } from '../format.js';
 import { HttpError} from "../errors.js";
+import { buildWhere } from '../submissionQueries.js';
 
 
 const router = Router();
@@ -250,5 +251,46 @@ router.get(
     }),
 );
 
+
+
+// ---------- CSV export (uses the same filters as the list) ----------
+
+// A cell that starts with = + - @ can run as a formula when opened in Excel. A leading ' makes it plain text.
+function csvCell(value) {
+    let text = value === null || value === undefined ? '' : String(value);
+    if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+    return `"${text.replaceAll('"', '""')}"`;
+}
+
+router.get(
+    '/export.csv',
+    asyncHandler(async (req, res) => {
+        const { where, params } = buildWhere(req.query);
+        const rows = await query(
+            `SELECT s.*, u.full_name AS worker_name, st.name AS site_name,
+              (SELECT COUNT(*) FROM photos p WHERE p.submission_id = s.id) AS photo_count
+       FROM submissions s JOIN users u ON u.id = s.user_id JOIN sites st ON st.id = s.site_id
+       ${where} ORDER BY s.form_date DESC, s.created_at DESC LIMIT 5000`,
+            params,
+        );
+
+        const header = ['ID', 'Worker', 'Site', 'Date', 'Status', 'Review', ...CHECKLIST.map((c) => c.label), 'Notes', 'Photos', 'Submitted at'];
+        const lines = [header.map(csvCell).join(',')];
+        for (const r of rows) {
+            const review = r.status !== 'FLAGGED' ? '' : r.resolved_at ? 'Resolved' : 'Open';
+            lines.push(
+                [
+                    r.id, r.worker_name, r.site_name, r.form_date, r.status, review,
+                    ...CHECKLIST.map((c) => (r[c.column] ? 'Yes' : 'No')),
+                    r.notes, r.photo_count, r.created_at.toISOString(),
+                ].map(csvCell).join(','),
+            );
+        }
+
+        res.set('Content-Type', 'text/csv; charset=utf-8');
+        res.set('Content-Disposition', 'attachment; filename="safety-forms.csv"');
+        res.send(lines.join('\r\n'));
+    }),
+);
 
 export default router;

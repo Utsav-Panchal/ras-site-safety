@@ -1,25 +1,59 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useAuth } from '../AuthContext.jsx';
 import AuthImage from '../components/AuthImage.jsx';
+import ConfirmDelete from '../components/ConfirmDelete.jsx';
 import { ReviewBadge, StatusBadge } from '../components/StatusBadge.jsx';
 import { formatBytes, formatDate, formatDateLong, formatWhen } from '../utils/format.js';
 
-// One page for both roles. Framers see their own form; admins see extra panels.
+// One page for both roles. Framers see their own form; admins see extra panels and buttons.
 export default function SubmissionDetail({ backTo }) {
     const { id } = useParams();
     const { user } = useAuth();
+    const navigate = useNavigate();
     const isAdmin = user.role === 'ADMIN';
 
     const [form, setForm] = useState(null);
     const [error, setError] = useState('');
+    const [note, setNote] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [actionError, setActionError] = useState('');
+    const [showDelete, setShowDelete] = useState(false);
     const [viewerPhoto, setViewerPhoto] = useState(null);
 
     const load = useCallback(() => {
         api.getSubmission(id).then(setForm).catch((err) => setError(err.message));
     }, [id]);
     useEffect(load, [load]);
+
+    // Runs one admin action: shows "busy", catches errors, returns true if it worked.
+    async function run(action) {
+        setBusy(true);
+        setActionError('');
+        try {
+            await action();
+            return true;
+        } catch (err) {
+            setActionError(err.message);
+            return false;
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    const resolve = () => run(async () => { await api.resolveSubmission(id); load(); });
+
+    const saveNote = async () => {
+        if (!note.trim()) return;
+        const ok = await run(async () => { await api.addNote(id, note.trim()); load(); });
+        if (ok) setNote('');
+    };
+
+    const remove = async () => {
+        const ok = await run(() => api.deleteSubmission(id));
+        if (ok) navigate(backTo, { replace: true });
+    };
 
     if (error) {
         return (
@@ -51,10 +85,15 @@ export default function SubmissionDetail({ backTo }) {
                 {isAdmin && (
                     <div className="detail-actions no-print">
                         <button type="button" className="btn" onClick={() => window.print()}>Print / PDF</button>
+                        {form.reviewStatus === 'OPEN' && (
+                            <button type="button" className="btn primary" onClick={resolve} disabled={busy}>Mark as resolved</button>
+                        )}
+                        <button type="button" className="btn danger" onClick={() => setShowDelete(true)}>Delete form</button>
                     </div>
                 )}
             </header>
 
+            {actionError && <p className="alert alert-error" role="alert">{actionError}</p>}
             {form.resolvedAt && (
                 <p className="alert alert-ok">Resolved by {form.resolvedByName}, {formatWhen(form.resolvedAt)}.</p>
             )}
@@ -131,6 +170,13 @@ export default function SubmissionDetail({ backTo }) {
                                     <p>{n.body}</p>
                                 </div>
                             ))}
+                            <textarea
+                                className="input" rows={3} placeholder="Add a follow-up note" value={note} maxLength={1000}
+                                onChange={(e) => setNote(e.target.value)}
+                            />
+                            <div className="right">
+                                <button type="button" className="btn" onClick={saveNote} disabled={busy || !note.trim()}>Save note</button>
+                            </div>
                             <div className="history">
                                 <b>History</b>
                                 {form.history.map((h, i) => (
@@ -141,6 +187,23 @@ export default function SubmissionDetail({ backTo }) {
                     )}
                 </div>
             </div>
+
+            {showDelete && (
+                <ConfirmDelete
+                    title="Delete this form?" confirmLabel="Delete form" busy={busy} error={actionError}
+                    onConfirm={remove} onCancel={() => { setShowDelete(false); setActionError(''); }}
+                >
+                    <p>
+                        You are about to delete the form from <b>{form.workerName}</b> at <b>{form.siteName}</b> on{' '}
+                        <b>{formatDateLong(form.formDate)}</b>.
+                    </p>
+                    <p className="callout">
+                        This also removes <b>{form.photos.length} photo{form.photos.length === 1 ? '' : 's'}</b> and the follow-up
+                        notes. {form.workerName.split(' ')[0]} will be able to submit a new form for this day. The deletion is
+                        recorded in the activity log.
+                    </p>
+                </ConfirmDelete>
+            )}
 
             {viewerPhoto && (
                 <div className="modal-backdrop viewer" role="presentation" onClick={() => setViewerPhoto(null)}>

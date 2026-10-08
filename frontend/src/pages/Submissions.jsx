@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
+import ConfirmDelete from '../components/ConfirmDelete.jsx';
 import { ReviewBadge, StatusBadge } from '../components/StatusBadge.jsx';
+import { downloadBlob } from '../utils/download.js';
 import { formatDate } from '../utils/format.js';
 
 const FILTER_KEYS = ['q', 'siteId', 'userId', 'from', 'to', 'status'];
@@ -16,10 +18,14 @@ export default function Submissions() {
     const [workers, setWorkers] = useState([]);
     const [result, setResult] = useState(null);
     const [error, setError] = useState('');
+    const [selected, setSelected] = useState(new Set());
     const [search, setSearch] = useState(filters.q);
+    const [confirm, setConfirm] = useState(null); // { ids: [...], label: '...' }
+    const [busy, setBusy] = useState(false);
+    const [deleteError, setDeleteError] = useState('');
 
     useEffect(() => {
-        api.meta().then((m) => setSites(m.sites)).catch(() => {});
+        api.adminSites().then((r) => setSites(r.sites)).catch(() => {});
         api.workers().then((w) => setWorkers(w.workers)).catch(() => {});
     }, []);
 
@@ -44,7 +50,7 @@ export default function Submissions() {
     const load = useCallback(() => {
         const query = Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? '']));
         api.listSubmissions({ ...query, page, pageSize: 10 })
-            .then((data) => { setResult(data); setError(''); })
+            .then((data) => { setResult(data); setError(''); setSelected(new Set()); })
             .catch((err) => setError(err.message));
     }, [params, page]);
     useEffect(load, [load]);
@@ -53,6 +59,37 @@ export default function Submissions() {
     const hasFilters = FILTER_KEYS.some((k) => filters[k]);
 
     const items = result?.items ?? [];
+    const allOnPage = items.length > 0 && items.every((i) => selected.has(i.id));
+    const toggleOne = (id) => setSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+    });
+    const toggleAll = () => setSelected(allOnPage ? new Set() : new Set(items.map((i) => i.id)));
+
+    async function exportCsv() {
+        try {
+            downloadBlob(await api.exportCsv(Object.fromEntries(FILTER_KEYS.map((k) => [k, filters[k]]))), 'safety-forms.csv');
+        } catch (err) {
+            setError(err.message);
+        }
+    }
+
+    async function confirmDelete() {
+        setBusy(true);
+        setDeleteError('');
+        try {
+            if (confirm.ids.length === 1) await api.deleteSubmission(confirm.ids[0]);
+            else await api.bulkDelete(confirm.ids);
+            setConfirm(null);
+            load();
+        } catch (err) {
+            setDeleteError(err.message);
+        } finally {
+            setBusy(false);
+        }
+    }
+
     const totalPages = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1;
     const counts = result?.counts;
     const chips = [
@@ -66,6 +103,7 @@ export default function Submissions() {
         <div className="stack">
             <div className="page-head">
                 <h1 className="h page-title">Submissions</h1>
+                <button type="button" className="btn" onClick={exportCsv}>Export CSV</button>
             </div>
 
             <section className="card filters">
@@ -76,7 +114,7 @@ export default function Submissions() {
                     <label className="field"><span>Site</span>
                         <select className="input" value={filters.siteId} onChange={(e) => setFilter({ siteId: e.target.value })}>
                             <option value="">All sites</option>
-                            {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            {sites.map((s) => <option key={s.id} value={s.id}>{s.name}{s.active ? '' : ' (archived)'}</option>)}
                         </select>
                     </label>
                     <label className="field"><span>Worker</span>
@@ -104,19 +142,31 @@ export default function Submissions() {
 
             {error && <p className="alert alert-error" role="alert">{error}</p>}
 
+            {selected.size > 0 && (
+                <div className="bulkbar" role="status">
+                    <b>{selected.size} selected</b>
+                    <span className="spacer" />
+                    <button type="button" className="btn danger" onClick={() => setConfirm({ ids: [...selected], label: `${selected.size} form${selected.size === 1 ? '' : 's'}` })}>
+                        Delete {selected.size}
+                    </button>
+                </div>
+            )}
+
             <section className="card table-card">
                 <div className="table-scroll">
                     <table className="tbl">
                         <thead>
                         <tr>
+                            <th className="narrow-col"><input type="checkbox" aria-label="Select all on this page" checked={allOnPage} onChange={toggleAll} /></th>
                             <th>Worker</th><th>Site</th><th>Date</th><th>Photos</th><th>Checklist</th><th>Status</th><th>Review</th><th className="right">Actions</th>
                         </tr>
                         </thead>
                         <tbody>
-                        {!result && <tr><td colSpan={8} className="muted center">Loading...</td></tr>}
-                        {result && items.length === 0 && <tr><td colSpan={8} className="muted center pad">No forms match these filters.</td></tr>}
+                        {!result && <tr><td colSpan={9} className="muted center">Loading...</td></tr>}
+                        {result && items.length === 0 && <tr><td colSpan={9} className="muted center pad">No forms match these filters.</td></tr>}
                         {items.map((row) => (
-                            <tr key={row.id}>
+                            <tr key={row.id} className={selected.has(row.id) ? 'selected' : ''}>
+                                <td><input type="checkbox" aria-label={`Select form from ${row.workerName}`} checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} /></td>
                                 <td><b>{row.workerName}</b></td>
                                 <td>{row.siteName}</td>
                                 <td>{formatDate(row.formDate, { weekday: false })}</td>
@@ -126,6 +176,7 @@ export default function Submissions() {
                                 <td><ReviewBadge review={row.reviewStatus} /></td>
                                 <td className="right nowrap">
                                     <Link to={`/admin/submissions/${row.id}`} className="link">View</Link>
+                                    <button type="button" className="link danger-link" onClick={() => setConfirm({ ids: [row.id], label: `the form from ${row.workerName} (${formatDate(row.formDate, { weekday: false })})` })}>Delete</button>
                                 </td>
                             </tr>
                         ))}
@@ -144,6 +195,18 @@ export default function Submissions() {
                     </div>
                 )}
             </section>
+
+            {confirm && (
+                <ConfirmDelete
+                    title={confirm.ids.length > 1 ? `Delete ${confirm.ids.length} forms?` : 'Delete this form?'}
+                    confirmLabel={confirm.ids.length > 1 ? `Delete ${confirm.ids.length} forms` : 'Delete form'}
+                    busy={busy} error={deleteError} onConfirm={confirmDelete}
+                    onCancel={() => { setConfirm(null); setDeleteError(''); }}
+                >
+                    <p>You are about to delete <b>{confirm.label}</b>.</p>
+                    <p className="callout">This also removes the photos and follow-up notes. The deletion is recorded in the activity log.</p>
+                </ConfirmDelete>
+            )}
         </div>
     );
 }

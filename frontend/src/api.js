@@ -87,6 +87,13 @@ export const api = {
     photoBlob: (id) => request(`/photos/${id}`, { as: 'blob' }),
     summary: (days) => request(`/admin/summary${toQuery({ days })}`),
 
+    // Slice 5: admin actions
+    deleteSubmission: (id) => request(`/submissions/${id}`, { method: 'DELETE' }),
+    bulkDelete: (ids) => request('/submissions/bulk-delete', { method: 'POST', json: { ids } }),
+    resolveSubmission: (id) => request(`/submissions/${id}/resolve`, { method: 'POST' }),
+    addNote: (id, body) => request(`/submissions/${id}/notes`, { method: 'POST', json: { body } }),
+    exportCsv: (params) => request(`/admin/export.csv${toQuery(params)}`, { as: 'blob' }),
+
     // Sites (admin)
     adminSites: () => request('/admin/sites'),
     createSite: (site) => request('/admin/sites', { method: 'POST', json: site }),
