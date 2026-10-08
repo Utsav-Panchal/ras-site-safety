@@ -9,6 +9,7 @@ import MyForms from './pages/MyForms.jsx';
 import SubmissionDetail from './pages/SubmissionDetail.jsx';
 import Submissions from './pages/Submissions.jsx';
 import Dashboard from './pages/Dashboard.jsx';
+import Sites from './pages/Sites.jsx';
 
 
 const homeFor = (user) => (user.role === 'ADMIN' ? '/admin' : '/form');
@@ -48,6 +49,7 @@ export default function App() {
                     <Route path="/admin" element={<Dashboard />} />
                     <Route path="/admin/submissions" element={<Submissions />} />
                     <Route path="/admin/submissions/:id" element={<SubmissionDetail backTo="/admin/submissions" />} />
+                    <Route path="/admin/sites" element={<Sites />} />
                 </Route>
             </Route>
 

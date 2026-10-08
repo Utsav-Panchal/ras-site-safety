@@ -86,4 +86,9 @@ export const api = {
     getSubmission: (id) => request(`/submissions/${id}`),
     photoBlob: (id) => request(`/photos/${id}`, { as: 'blob' }),
     summary: (days) => request(`/admin/summary${toQuery({ days })}`),
+
+    // Sites (admin)
+    adminSites: () => request('/admin/sites'),
+    createSite: (site) => request('/admin/sites', { method: 'POST', json: site }),
+    updateSite: (id, changes) => request(`/admin/sites/${id}`, { method: 'PATCH', json: changes }),
 };

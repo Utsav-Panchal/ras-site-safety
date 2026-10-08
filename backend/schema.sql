@@ -16,8 +16,11 @@ CREATE TABLE sites (
                        id          SERIAL PRIMARY KEY,
                        name        VARCHAR(120) NOT NULL UNIQUE,
                        address     VARCHAR(200),
+                       active      BOOLEAN      NOT NULL DEFAULT true,  -- false = archived (hidden from the form dropdown)
                        created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
+-- "Oakridge" and "oakridge" count as the same site
+CREATE UNIQUE INDEX idx_sites_name_lower ON sites (lower(name));
 
 CREATE TABLE submissions (
                              id                 SERIAL PRIMARY KEY,

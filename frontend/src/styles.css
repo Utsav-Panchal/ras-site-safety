@@ -310,3 +310,9 @@ textarea.input { resize: vertical; }
     body { background: #fff; }
     .card { break-inside: avoid; }
 }
+
+/* Sites page (admin) */
+.site-form { display: grid; grid-template-columns: 1.2fr 1.6fr auto; gap: 12px; align-items: end; }
+.count { font-weight: 700; }
+tr.dim td { color: #8a938e; }
+@media (max-width: 700px) { .site-form { grid-template-columns: 1fr; } }

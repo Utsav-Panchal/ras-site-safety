@@ -56,6 +56,7 @@ export function AdminShell(){
                 <nav>
                     <NavLink to="/admin" end>Dashboard</NavLink>
                     <NavLink to="/admin/submissions">Submissions</NavLink>
+                    <NavLink to="/admin/sites">Sites</NavLink>
                 </nav>
                 <div className="a-user">
                     <div><b>{user.full_name}</b><br /><span>Supervisor</span></div>

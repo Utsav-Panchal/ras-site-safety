@@ -46,7 +46,7 @@ router.post(
         // site
         const siteIdNum = Number(siteId);
         const [site] = Number.isInteger(siteIdNum) && siteIdNum > 0
-            ? await query('SELECT id, name FROM sites WHERE id = $1', [siteIdNum])
+            ? await query('SELECT id, name FROM sites WHERE id = $1 AND active', [siteIdNum])
             : [];
         if (!site) errors.siteId = 'Choose a job site.';
 

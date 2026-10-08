@@ -10,7 +10,7 @@ router.use(requireAuth);
 router.get(
     '/meta',
     asyncHandler(async (_req, res) => {
-        const sites = await query('SELECT id, name FROM sites ORDER BY name');
+        const sites = await query('SELECT id, name FROM sites WHERE active ORDER BY name');
         res.json({
             sites,
             checklist: CHECKLIST.map(({ key, label, group }) => ({ key, label, group })),

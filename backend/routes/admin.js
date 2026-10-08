@@ -6,6 +6,7 @@ import { query } from '../db.js';
 import { validateNewUser } from '../userValidation.js';
 import { CHECKLIST, todayInTz } from '../config.js';
 import { addDays } from '../format.js';
+import { HttpError} from "../errors.js";
 
 
 const router = Router();
@@ -30,6 +31,91 @@ router.post(
             if (err.code === '23505') {
                 throw new HttpError(409, 'That username is already taken.', { username: 'That username is already taken.' });
             }
+            throw err;
+        }
+    }),
+);
+
+
+// ---------- Sites (add, edit, archive, restore) ----------
+// A site is never deleted: old forms point at it. "Archive" hides it from the form dropdown instead.
+
+function validateSite(body) {
+    const name = String(body?.name ?? '').trim().replace(/\s+/g, ' ');
+    const address = String(body?.address ?? '').trim();
+    const errors = {};
+    if (name.length < 2 || name.length > 80) errors.name = 'Site name must be 2 to 80 characters.';
+    if (address.length > 200) errors.address = 'Address can be up to 200 characters.';
+    if (Object.keys(errors).length) throw new HttpError(400, 'Please fix the highlighted fields.', errors);
+    return { name, address: address || null };
+}
+
+const nameTaken = () =>
+    new HttpError(409, 'A site with that name already exists.', { name: 'A site with that name already exists.' });
+
+router.get(
+    '/sites',
+    asyncHandler(async (_req, res) => {
+        const sites = await query(
+            `SELECT st.id, st.name, st.address, st.active, st.created_at AS "createdAt",
+              COUNT(s.id) AS "formCount"
+       FROM sites st LEFT JOIN submissions s ON s.site_id = st.id
+       GROUP BY st.id ORDER BY st.active DESC, st.name`,
+        );
+        res.json({ sites });
+    }),
+);
+
+router.post(
+    '/sites',
+    asyncHandler(async (req, res) => {
+        const { name, address } = validateSite(req.body);
+        try {
+            const [site] = await query(
+                `INSERT INTO sites (name, address) VALUES ($1, $2)
+         RETURNING id, name, address, active, created_at AS "createdAt", 0 AS "formCount"`,
+                [name, address],
+            );
+            res.status(201).json({ site });
+        } catch (err) {
+            if (err.code === '23505') throw nameTaken();
+            throw err;
+        }
+    }),
+);
+
+router.patch(
+    '/sites/:id',
+    asyncHandler(async (req, res) => {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) throw new HttpError(404, 'Site not found.');
+        const [current] = await query('SELECT * FROM sites WHERE id = $1', [id]);
+        if (!current) throw new HttpError(404, 'Site not found.');
+
+        // only the fields that were sent are changed
+        let { name, address } = current;
+        if (req.body?.name !== undefined || req.body?.address !== undefined) {
+            ({ name, address } = validateSite({
+                name: req.body.name ?? current.name,
+                address: req.body.address ?? current.address ?? '',
+            }));
+        }
+        let active = current.active;
+        if (req.body?.active !== undefined) {
+            if (typeof req.body.active !== 'boolean') throw new HttpError(400, 'active must be true or false.');
+            active = req.body.active;
+        }
+
+        try {
+            const [site] = await query(
+                `UPDATE sites SET name = $2, address = $3, active = $4 WHERE id = $1
+         RETURNING id, name, address, active, created_at AS "createdAt",
+                   (SELECT COUNT(*) FROM submissions WHERE site_id = sites.id) AS "formCount"`,
+                [id, name, address, active],
+            );
+            res.json({ site });
+        } catch (err) {
+            if (err.code === '23505') throw nameTaken();
             throw err;
         }
     }),
@@ -92,7 +178,9 @@ router.get(
                 COUNT(s.id) FILTER (WHERE s.status = 'FLAGGED') AS flagged
          FROM sites st
          LEFT JOIN submissions s ON s.site_id = st.id AND s.form_date BETWEEN $1 AND $2
-         GROUP BY st.id ORDER BY st.name`,
+                 GROUP BY st.id
+                 HAVING st.active OR COUNT(s.id) > 0
+                 ORDER BY st.name`,
                 [from, today],
             ),
             query(
@@ -114,7 +202,13 @@ router.get(
             query(`SELECT message, created_at AS "createdAt" FROM activity_log ORDER BY created_at DESC, id DESC LIMIT 8`),
         ]);
 
-        const sites = await query('SELECT id, name FROM sites ORDER BY name');
+        // active sites, plus an archived site that still got a form today
+        const sites = await query(
+            `SELECT id, name FROM sites
+       WHERE active OR id IN (SELECT site_id FROM submissions WHERE form_date = $1)
+       ORDER BY name`,
+            [today],
+        );
         const todayBySite = sites.map((site) => ({
             siteId: site.id,
             name: site.name,
