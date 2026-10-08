@@ -11,9 +11,9 @@ Framers fill in a daily safety form (with photos) on their phone. Admins review 
 | **Auth** | Username + password, bcrypt hashes, JWT bearer token, role checks on the server |
 | **Hosting** | Netlify (site + function). Neon for PostgreSQL |
 
-- Live app: <your Netlify URL>
-- Repository: <your GitHub URL>
-- ERD: [docs/erd.png](docs/erd.png) (also [PDF](docs/erd.pdf))
+- Live app: https://fancy-puffpuff-699f43.netlify.app/
+- Repository: https://github.com/Utsav-Panchal/ras-site-safety.git
+- ERD: [docs/erd.pdf](docs/erd.pdf)
 
 ## Test credentials
 
@@ -30,10 +30,12 @@ These are demo accounts for a demo database only.
 1. **Auth and roles.** Sign up, log in, two roles: Framer and Admin. Framers can only create and read their own forms. Admins can read everything. The rules are enforced **on the server**, not only hidden in the UI.
 2. **Safety form.** Site, date, worker name from the login, 8 checklist items, notes, and 1 to 5 photos. Validation in the browser and again on the server. Clear success screen and error messages. The worker side is mobile first.
 3. **Admin dashboard.**
-    - Submissions list with worker, site, date, status, filters (site, worker, date range, status, text search) and pagination. Filters live in the URL.
-    - Detail view with the checklist, notes and photos (click to enlarge).
-    - Summary: compliance rate, compliance by site, who submitted today, who is missing, most missed items, open follow-ups, last 7 or 30 days chart, activity log.
-4. **Data.** `npm run seed` creates 1 admin, 5 framers, 4 sites and about 45 forms with demo photos.
+   - Submissions list with worker, site, date, status, filters (site, worker, date range, status, text search) and pagination. Filters live in the URL.
+   - Detail view with the checklist, notes and photos (click to enlarge).
+   - **Admin actions:** mark a flagged form as resolved, add private follow-up notes, delete a form (with a confirmation popup), delete several at once, export the filtered list to CSV.
+   - Summary: compliance rate, compliance by site, who submitted today, who is missing, most missed items, open follow-ups, last 7 or 30 days chart, activity log.
+4. **Sites (admin).** The admin **Sites** page adds, edits, archives and restores job sites. New sites show in the framers' dropdown right away. Archived sites disappear from the dropdown but keep their old forms.
+5. **Data.** `npm run seed` creates 1 admin, 5 framers, 4 sites and about 45 forms with demo photos.
 
 ## Run it on your computer
 
@@ -43,7 +45,7 @@ You need Node 20.6+ and a PostgreSQL database (local, or a free Neon one).
 git clone <your GitHub URL> && cd ras-site-safety
 npm install
 cp .env.example .env            # then edit DATABASE_URL and JWT_SECRET
-npm run seed                    # creates tables + demo data (drops existing tables!)
+npm run seed                    # creates tables + demo data (drops existing tables!). Re-run it after pulling this version: the `sites` table has a new `active` column
 npm run dev:api                 # terminal 1: API on http://localhost:4000
 npm run dev:web                 # terminal 2: React on http://localhost:5173
 ```
@@ -82,11 +84,23 @@ All routes are under `/api` and need `Authorization: Bearer <token>` unless note
 | `GET /submissions` | admin | list with filters: `siteId, userId, from, to, status, q, page` |
 | `GET /submissions/:id` | owner or admin | detail (admins also get notes, history, 7-day strip) |
 | `GET /photos/:id` | owner or admin | the image |
+| `POST /submissions/:id/resolve` | admin | mark a flagged form as resolved (409 if already resolved or not flagged) |
+| `POST /submissions/:id/notes` | admin | add a private follow-up note |
+| `DELETE /submissions/:id` | admin | delete a form (photos and notes go with it) |
+| `POST /submissions/bulk-delete` | admin | body `{ ids: [...] }`, 1 to 100 forms |
 | `GET /admin/summary?days=7\|30` | admin | dashboard numbers |
+| `GET /admin/export.csv` | admin | CSV of the forms, same filters as the list |
+| `GET /admin/sites` | admin | all sites (active and archived) with form counts |
+| `POST /admin/sites` | admin | add a site (`name`, `address`). 409 if the name exists |
+| `PATCH /admin/sites/:id` | admin | edit `name` / `address`, or `active: false` to archive, `true` to restore |
 
 ## Assumptions and decisions
 
 - **Sign-up.** Anyone can sign up, but the server always gives the role FRAMER and ignores any `role` in the request. Admins are created only by another admin or by the seed. Passwords need 8 to 72 characters (bcrypt reads at most 72).
+- **Sites are archived, never deleted.** Old forms point at a site, so deleting one would break history. Archiving (`sites.active = false`) hides it from the form dropdown and the server also refuses new forms for it. Site names are unique ignoring upper/lower case.
+- **Sessions last 1 hour.** After that the app asks the user to sign in again.
+- **CSV safety.** Cells that start with `=`, `+`, `-` or `@` get a leading `'` so Excel cannot run them as formulas.
+- **Deleting is permanent** and needs a tick in the confirmation popup. The activity log keeps a line about it.
 - **Status.** A form is `FLAGGED` if any checklist item is unchecked, otherwise `COMPLIANT`. A note is required when flagged.
 - **Photos are required** (1 to 5). Allowed types: JPG, PNG, WebP. The server checks the real file signature, not only the file name. The browser shrinks photos before upload.
 - **Photos live in PostgreSQL**, because Netlify Function disks are temporary. For a bigger product I would use object storage (S3 or Netlify Blobs) and keep only the URL in the database.
@@ -100,4 +114,4 @@ All routes are under `/api` and need `Authorization: Bearer <token>` unless note
 
 ## Possible next steps
 
-Delete and resolve flagged forms, admin follow-up notes, CSV export, edit a form on the same day, site assignments per worker, reminders, photo storage in object storage, httpOnly cookies and rate limiting.
+Edit a form on the same day, site assignments per worker, reminders, photo storage in object storage, httpOnly cookies and rate limiting on login, an activity-log entry for site changes.
