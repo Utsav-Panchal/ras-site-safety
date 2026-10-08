@@ -35,7 +35,7 @@ export default function Login() {
         <div className="login-page">
             <section className="login-hero">
                 <Logo size="xl" />
-                <p>Daily safety forms, photos and sign-off for every crew on every site.</p>
+                <p>Safety first, every crew, every site, every day.</p>
             </section>
             <form className="login-card" onSubmit={handleSubmit} noValidate>
                 <h1 className="h">Sign in</h1>
